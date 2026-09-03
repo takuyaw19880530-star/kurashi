@@ -284,6 +284,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
 </header>
 
 <main>
+  <div id="pwaNote"></div>
   <div class="banner info">
     数字はすべて空です。前提タブで自分の数字を入れるか、書き出したファイルを読み込んで使い始めてください。
     入力した内容はこの端末のブラウザにだけ保存され、どこにも送信されません。
@@ -488,11 +489,14 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
         <input id="spouseName" type="text" autocomplete="off" placeholder="例：ﾔﾏﾀﾞ ﾊﾅｺ">
       </div>
       <p class="sub" style="margin-top:16px">摘要にこの言葉を含む取引を、その項目に入れます。上から順に照合します。「除外」は口座間の資金移動に使います。</p>
-      <div id="ruleList"></div>
-      <div class="btnrow">
-        <button class="btn ghost sm" id="ruleAdd">ルールを追加</button>
-        <button class="btn ghost sm" id="ruleReset">初期値に戻す</button>
-      </div>
+      <details>
+        <summary id="ruleSummary">ルールの一覧</summary>
+        <div id="ruleList"></div>
+        <div class="btnrow">
+          <button class="btn ghost sm" id="ruleAdd">ルールを追加</button>
+          <button class="btn ghost sm" id="ruleReset">初期値に戻す</button>
+        </div>
+      </details>
       <ul class="footnote">
         <li>どのルールにも当たらないものは「その他」に入るので、差額は通帳と一致します。</li>
       </ul>
@@ -513,10 +517,13 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
       <h2>毎月の定例額</h2>
       <p class="sub">記録タブに最初から入る金額。ボーナス月や隔月の請求は、その月だけ変えておきます。単位は円。<br>
         「貯蓄扱い」にチェックを入れた項目は、支出ではなく貯蓄として数えます。手元に残る差額は変わりません。</p>
-      <div class="tablewrap"><table class="grid" id="recTable"></table></div>
-      <div class="btnrow">
-        <button class="btn ghost sm" id="recFromRecords">記録した月の平均に合わせる</button>
-      </div>
+      <details>
+        <summary>金額の表を開く</summary>
+        <div class="tablewrap" style="margin-top:8px"><table class="grid" id="recTable"></table></div>
+        <div class="btnrow">
+          <button class="btn ghost sm" id="recFromRecords">記録した月の平均に合わせる</button>
+        </div>
+      </details>
       <ul class="footnote">
         <li>ボーナス加算のある月は、その月だけ金額を変えておきます。</li>
         <li>隔月や年1回の請求は、該当する月にだけ金額を入れます。</li>
@@ -2188,6 +2195,8 @@ function syncNames(){
 }
 function renderRules(){
   bindNames(); syncNames();
+  var sm=document.getElementById("ruleSummary");
+  if(sm) sm.textContent="ルールの一覧（"+DB.rules.length+"件）";
   var host=document.getElementById("ruleList"); if(!host)return;
   var tg=ruleTargets();
   host.innerHTML=DB.rules.map(function(r,i){
@@ -2345,10 +2354,26 @@ function renderCard(){
     };
   });
 }
+var IS_APP=(function(){
+  try{ return window.navigator.standalone===true
+    || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches); }
+  catch(e){ return false; }
+})();
+function renderPwaNote(){
+  var el=document.getElementById("pwaNote"); if(!el)return;
+  var empty=(doneKeys().length===0 && DB.snaps.length===0);
+  if(IS_APP && empty){
+    el.innerHTML='<div class="banner draft"><b>ホーム画面のアプリは、Safariとは別の保存領域を使います。</b><br>'
+      +'Safariで入力した内容は引き継がれません。'
+      +'Safariで開いて「前提」タブから書き出し、出てきた文字をコピーして、'
+      +'このアプリの「ファイルが使えないとき」に貼り付けてください。<br>'
+      +'以後はどちらか一方だけで使うことをおすすめします。</div>';
+  } else el.innerHTML="";
+}
 function renderAll(){
   applyAuto();
   var rows=project();
-  renderHome(rows); renderProj(rows); renderLedger(); renderAssets(); renderScenarios(); renderRules(); renderCard();
+  renderHome(rows); renderProj(rows); renderLedger(); renderAssets(); renderScenarios(); renderRules(); renderCard(); renderPwaNote();
   syncSetupInputs(); syncRecurring();
 }
 

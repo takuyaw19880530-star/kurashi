@@ -887,7 +887,7 @@ function project(alt){
     var inTot=income+lump+chFor(a1)+chFor(a2);
     var live=(S("living")+S("buffer"))*Math.pow(1+inf,i);
     var edu=eduFor(a1)+eduFor(a2);
-    var hDue=year<S("hRevY")?S("hPay"):S("hPay2");
+    var hDue=year<S("hRevY")?S("hPay"):(S("hPay2")>0?S("hPay2"):S("hPay"));
     var hPay=hb<=0?0:Math.min(hb*(1+hr),hDue+S("hEx"));
     var cPay=cb<=0?0:Math.min(cb*(1+cr),S("cPay")+S("cEx"));
     var ded=(year<=S("hDedEnd")&&hb>0)?Math.min(S("hDed"),hb*0.007):0;
@@ -1982,6 +1982,10 @@ function advice(rows,need){
     ? "書き出しが"+bs.days+"日前で、それ以降に"+bs.fresh+"ヶ月ぶん記録しています。記録はこの端末のブラウザにしかありません。"
     : "まだ一度も書き出していません。記録が消えると元に戻せないので、前提タブから書き出してください。"});
 
+  if(S("hBal")>0&&S("hPay")<=0) out.push({p:99,
+    t:"住宅ローンの年間返済額が0です。このままだと残高が減らず、利息で増える計算になります。定例額に毎月の返済額を入れるか、年間返済額を直接入れてください。"});
+  if(S("cBal")>0&&S("cPay")<=0) out.push({p:99,
+    t:"車ローンの年間返済額が0です。このままだと残高が減りません。前提タブに年間返済額を入れてください。"});
   var fire=null; rows.forEach(function(d){if(!fire&&d.net>=need)fire=d;});
   if(!fire) out.push({p:92,t:"いまの前提では、65歳までに必要資産"+man(need)+"円に届きません。暮らしの費用か積立の想定を見直してください。"});
 

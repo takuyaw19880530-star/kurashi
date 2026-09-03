@@ -179,6 +179,9 @@ tr.actual td,tr.actual td:first-child{background:#EFF2F5}
 table.grid input{width:98px;text-align:right;font-size:14px;padding:6px 7px;border:1px solid var(--line);
   border-radius:5px;font-variant-numeric:tabular-nums;background:#FBFCFB;color:var(--ink)}
 table.grid td,table.grid th{padding:4px 5px}
+table.grid thead th{position:sticky;top:0;z-index:2}
+table.grid thead th:first-child{z-index:3}
+table.grid thead th:nth-child(2){min-width:44px;line-height:1.25}
 
 .chartwrap{position:relative}
 .chart{width:100%;height:auto;display:block;overflow:visible;touch-action:pan-y}
@@ -483,7 +486,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
 
     <div class="panel">
       <h2>毎月の定例額</h2>
-      <p class="sub">記録タブに最初から入る金額。ボーナス月や隔月の請求は、その月だけ変えておきます。単位は円。</p>
+      <p class="sub">記録タブに最初から入る金額。ボーナス月や隔月の請求は、その月だけ変えておきます。単位は円。<br>
+        「貯蓄扱い」にチェックを入れた項目は、支出ではなく貯蓄として数えます。手元に残る差額は変わりません。</p>
       <div class="tablewrap"><table class="grid" id="recTable"></table></div>
       <div class="btnrow">
         <button class="btn ghost sm" id="recFromRecords">記録した月の平均に合わせる</button>
@@ -598,7 +602,7 @@ var SETUP=[
  {g:"住宅ローン", auto:"hbal"},
  {k:"hBal", n:"残高", v:0, u:"円"},
  {k:"hRate",n:"金利", v:1.000, u:"%", pct:true},
- {k:"hPay", n:"年間返済額", v:0, u:"円", ro:true, h:"定例額の12ヶ月合計から自動計算"},
+ {k:"hPay", n:"年間返済額", v:0, u:"円", h:"記録が12ヶ月そろえばその実績、なければ定例額の合計。どちらも無ければ手入力"},
  {k:"hRevY",n:"返済額が見直される年", v:2030, u:"年", h:"変動金利の5年ルールなど"},
  {k:"hPay2",n:"見直し後の年間返済額", v:0, u:"円", h:"見直し時の残高と金利で再計算された額。改定通知が来たら実額に直す"},
  {k:"hEx",  n:"追加の繰上返済（年額）", v:0, u:"円", h:"控除が切れる2036年までは0で"},
@@ -824,8 +828,11 @@ function applyAuto(){
     if(DB.auto.hbal) DB.setup.hBal=Number(s.items.lHome)||0;
     if(DB.auto.cbal) DB.setup.cBal=Number(s.items.lCar)||0;
   }
+  // 住宅ローンの年間返済額は、実績があればそこから、なければ定例額から
   var t=0; for(var i=0;i<12;i++) t+=recVal("mort",i+1);
-  DB.setup.hPay=t;
+  if(r.ready && r.mort>0) DB.setup.hPay=Math.round(r.mort);
+  else if(t>0) DB.setup.hPay=t;
+  // どちらも無いときは手で入れた値をそのまま残す
   return r;
 }
 
@@ -1475,6 +1482,8 @@ function syncSetupInputs(){
     document.getElementById("st-"+k).disabled = !!(DB.auto[a] && r.ready);
   });
   ["asset"].forEach(function(k){document.getElementById("st-"+k).disabled=!!(DB.auto.asset&&DB.snaps.length);});
+  var mt=0; for(var mi=0;mi<12;mi++) mt+=recVal("mort",mi+1);
+  document.getElementById("st-hPay").disabled = !!((r.ready&&r.mort>0)||mt>0);
   document.getElementById("st-hBal").disabled=!!(DB.auto.hbal&&DB.snaps.length);
   document.getElementById("st-cBal").disabled=!!(DB.auto.cbal&&DB.snaps.length);
 }

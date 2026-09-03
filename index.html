@@ -85,6 +85,15 @@ nav.tabs button:focus-visible{outline:2px solid var(--ink);outline-offset:-3px}
 .group-title:first-of-type{margin-top:4px}
 .group-title .gsum{font-family:var(--gothic);font-variant-numeric:tabular-nums;color:var(--ink)}
 
+.cov{border-collapse:collapse;font-size:12px;min-width:520px}
+.cov th,.cov td{padding:3px 5px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+.cov th{background:#EDF0EE;font-size:10.5px;font-weight:600;position:sticky;top:0;z-index:2}
+.cov td:first-child,.cov th:first-child{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1}
+.cov th:first-child{background:#EDF0EE;z-index:3}
+.cov .on{color:var(--good);font-weight:700}
+.cov .off{color:var(--faint)}
+.cov .gap{color:var(--bad);font-weight:700}
+.cov .fill{color:var(--warn)}
 .mstrip{display:flex;gap:5px;overflow-x:auto;padding:1px 0 10px;-webkit-overflow-scrolling:touch}
 .mstrip button{flex:none;min-width:54px;padding:6px 5px;border-radius:7px;border:1px solid var(--line);
   background:var(--surface);font-family:var(--gothic);font-size:11.5px;color:var(--muted);
@@ -93,6 +102,16 @@ nav.tabs button:focus-visible{outline:2px solid var(--ink);outline-offset:-3px}
 .mstrip button.done{background:var(--good-soft);border-color:#BFD6CE;color:var(--good)}
 .mstrip button.cur{outline:2px solid var(--ink);outline-offset:-2px;color:var(--ink);font-weight:600}
 .delta{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.fw{border-bottom:1px solid var(--line)}
+.fw:last-child{border-bottom:0}
+.fw>.field{border-bottom:0}
+.txl{padding:0 0 10px 24px}
+.txl .r{display:flex;gap:9px;font-size:12.5px;padding:3px 0;border-bottom:1px solid #EEF1F0}
+.txl .r:last-child{border-bottom:0}
+.txl .r .d{flex:none;width:46px;color:var(--muted);font-variant-numeric:tabular-nums}
+.txl .r .m{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txl .r .a{flex:none;width:92px;text-align:right;font-variant-numeric:tabular-nums}
+.car.tx{cursor:pointer;user-select:none}
 .delta.odd{color:var(--warn);font-weight:600}
 .cat{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .cat .nm{flex:1;min-width:0}
@@ -329,6 +348,12 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
         <input type="file" id="csvFile" accept=".csv,text/csv" multiple hidden>
       </div>
       <div id="csvPreview"></div>
+    </div>
+
+    <div class="panel">
+      <h2>取り込みの状況</h2>
+      <p class="sub">毎月あるはずの項目が0になっている月を出します。口座の取り込み漏れを見つけるためのものです。</p>
+      <div id="coverage"></div>
     </div>
 
     <div class="panel">
@@ -1079,6 +1104,11 @@ function parseAmt(x){
   var v=Number(t.normalize?t.normalize("NFKC"):t);
   return isFinite(v)?Math.abs(v):0;
 }
+function hash32(str){
+  var h=5381;
+  for(var i=0;i<str.length;i++){h=((h<<5)+h+str.charCodeAt(i))|0;}
+  return (h>>>0).toString(36);
+}
 function matchRule(desc){
   var d=norm(desc);
   var sp=norm(DB.spouseName||""); if(sp && d.indexOf(sp)>=0) return "spouse";
@@ -1127,7 +1157,7 @@ function buildImport(files){
       if(sigOwner[sig]===undefined) sigOwner[sig]=fi;
       var key=matchRule(desc);
       if(key==="__skip"){skipped++;continue;}
-      if(!months[mk]) months[mk]={vals:{},un:[],cnt:0,minD:null,maxD:null};
+      if(!months[mk]) months[mk]={vals:{},un:[],tx:[],cnt:0,minD:null,maxD:null};
       var M=months[mk];
       M.cnt++;
       if(dd){ if(!M.minD||dd<M.minD)M.minD=dd; if(!M.maxD||dd>M.maxD)M.maxD=dd; }
@@ -1138,7 +1168,9 @@ function buildImport(files){
       }
       var isIncome=false,g="";
       ITEMS.forEach(function(x){if(x.g){g=x.g;return;} if(x.k===key&&g==="収入") isIncome=true;});
-      M.vals[key]=(M.vals[key]||0)+(isIncome?inn:out);
+      var amt=isIncome?inn:out;
+      M.vals[key]=(M.vals[key]||0)+amt;
+      M.tx.push([hash32(sig),key,amt,(dd||"").slice(5),String(desc).trim().slice(0,34)]);
     }
   });
   var seen={};
@@ -1154,11 +1186,19 @@ function applyImport(res,useFill,only){
   Object.keys(res.months).forEach(function(mk){
     if(only && only.indexOf(mk)<0) return;
     var mn=Number(mk.split("-")[1]), rec={};
+    var prev=(DB.months[mk]&&DB.months[mk].__done)?DB.months[mk]:null;
+    // 前に取り込んだ明細と今回の明細を、重複を除いて足し合わせる
+    var ptx=(prev&&Array.isArray(prev.__tx))?prev.__tx:[];
+    var have={}; ptx.forEach(function(t){have[t[0]]=1;});
+    var merged=ptx.slice();
+    (res.months[mk].tx||[]).forEach(function(t){ if(!have[t[0]]){have[t[0]]=1;merged.push(t);} });
+    var agg={}; merged.forEach(function(t){ agg[t[1]]=(agg[t[1]]||0)+t[2]; });
     itemsOnly().forEach(function(f){
-      // そのCSVに一度も出てこなかった項目（別口座やカード内の積立）は定例額で補う
-      rec[f.k]= res.seen[f.k] ? (res.months[mk].vals[f.k]||0)
-              : (useFill===false ? 0 : recVal(f.k,mn));
+      if(agg[f.k]!==undefined)             rec[f.k]=agg[f.k];                    // 明細から積み上げ
+      else if(prev&&prev[f.k]!==undefined) rec[f.k]=Number(prev[f.k])||0;        // 手で入れた値などを残す
+      else                                 rec[f.k]=(useFill===false?0:recVal(f.k,mn));
     });
+    rec.__tx=merged;
     rec.__done=true; DB.months[mk]=rec; n++;
   });
   return n;
@@ -1228,6 +1268,7 @@ function renderImport(res){
       +'<label class="toggle" style="font-size:13px;color:#6B5A2E"><input type="checkbox" id="impFill" checked>'
       +'<span>このCSVに出てこなかった項目を、定例額で補う</span></label>'
       +'<p style="font-size:12px;color:#6B5A2E;margin:6px 0 0;line-height:1.7">対象：'+names.join("、")
+      +'<br>すでに記録がある月では、前の取り込みの値をそのまま残します。口座ごとに分けて取り込んでも消えません。'
       +(un.length?'<br><b>未分類が残っています。先に割り当てないと二重計上になります。</b>':'')
       +'</p></div>';
   }
@@ -1525,11 +1566,16 @@ function buildLedger(){
   var host=document.getElementById("ledgerForm"),h="";
   ITEMS.forEach(function(f){
     if(f.g){h+='<p class="group-title"><span>'+f.g+'</span><span class="gsum num" id="gs-'+encodeURIComponent(f.g)+'"></span></p>';return;}
-    h+='<div class="field"><label for="lg-'+f.k+'">'+f.n+'<span class="badge" id="bd-'+f.k+'" hidden>貯蓄</span><span class="badge memo" id="md-'+f.k+'" hidden>内数</span>'+(f.h?'<span class="hint">'+f.h+'</span>':'')+'<span class="delta" id="dl-'+f.k+'"></span></label>'
-      +'<input id="lg-'+f.k+'" type="text" inputmode="numeric" autocomplete="off"><span class="unit">円</span></div>';
+    h+='<div class="fw"><div class="field">'
+      +'<span class="car tx" id="tc-'+f.k+'" data-tx="'+f.k+'" hidden>▸</span>'
+      +'<label for="lg-'+f.k+'">'+f.n+'<span class="badge" id="bd-'+f.k+'" hidden>貯蓄</span><span class="badge memo" id="md-'+f.k+'" hidden>内数</span>'+(f.h?'<span class="hint">'+f.h+'</span>':'')+'<span class="delta" id="dl-'+f.k+'"></span></label>'
+      +'<input id="lg-'+f.k+'" type="text" inputmode="numeric" autocomplete="off"><span class="unit">円</span></div>'
+      +'<div class="txl" id="tx-'+f.k+'" hidden></div></div>';
   });
   host.innerHTML=h;
   itemsOnly().forEach(function(f){
+    var tc=document.getElementById("tc-"+f.k);
+    if(tc) tc.onclick=function(){ledgerOpen[f.k]=!ledgerOpen[f.k];renderLedger();};
     var el=document.getElementById("lg-"+f.k); attachMoney(el);
     el.addEventListener("input",function(e){
       var rec=DB.months[curMonth];
@@ -1604,8 +1650,91 @@ function prevRecorded(k){
   var ks=doneKeys().filter(function(x){return x<k;});
   return ks.length?ks[ks.length-1]:null;
 }
+function shortName(n){return n.replace(/（.*$/,"").replace(/\(.*$/,"").slice(0,6);}
+function coverage(){
+  var ks=doneKeys(), items=itemsOnly();
+  if(!ks.length) return null;
+  var cnt={}, grid={};
+  items.forEach(function(f){cnt[f.k]=0;});
+  ks.forEach(function(k){
+    var v=monthValues(k).v, rec=DB.months[k];
+    var tx=(rec&&Array.isArray(rec.__tx))?rec.__tx:null;
+    var fromCsv={};
+    if(tx) tx.forEach(function(t){fromCsv[t[1]]=true;});
+    grid[k]={};
+    items.forEach(function(f){
+      // CSVから入った=2／定例額などで埋まっている=1／0のまま=0
+      var st;
+      if(tx) st = fromCsv[f.k] ? 2 : ((Number(v[f.k])||0)!==0 ? 1 : 0);
+      else   st = (Number(v[f.k])||0)!==0 ? 2 : 0;   // 手入力の月はCSV扱い
+      grid[k][f.k]=st; if(st===2)cnt[f.k]++;
+    });
+  });
+  var need=Math.ceil(ks.length*0.5);
+  var regular=items.filter(function(f){return cnt[f.k]>=need;});
+  var holes=[];
+  ks.forEach(function(k){
+    var miss=regular.filter(function(f){
+      return grid[k][f.k]!==2 && !(f.adj||f.child||f.k==="prepay");});
+    if(miss.length) holes.push({k:k,miss:miss});
+  });
+  // 一度もCSVから入っていない項目（定例額があるか、補完で埋まっているもの）
+  var never=items.filter(function(f){
+    if(f.adj||f.child||f.k==="prepay") return false;   // 通帳に出ない項目は対象外
+    if(cnt[f.k]>0) return false;
+    var t=0; for(var i=1;i<=12;i++) t+=recVal(f.k,i);
+    if(t>0) return true;
+    return ks.some(function(k){return grid[k][f.k]===1;});
+  });
+  return {ks:ks,items:items,cnt:cnt,grid:grid,holes:holes,never:never,
+          shown:items.filter(function(f){return cnt[f.k]>0;}).concat(never)};
+}
+function renderCoverage(){
+  var host=document.getElementById("coverage"); if(!host)return;
+  var c=coverage();
+  if(!c){host.innerHTML='<p class="footnote" style="padding-left:0">まだ記録がありません。</p>';return;}
+  var h="";
+  if(c.never.length){
+    h+='<div class="banner draft"><b>一度も金額が入っていない項目があります。</b>'
+      +'その口座のCSVをまだ取り込んでいない可能性が高いです。<br>'
+      +c.never.map(function(f){return shortName(f.n);}).join("・")+'</div>';
+  }
+  if(!c.holes.length&&!c.never.length){
+    h+='<div class="banner done">記録した'+c.ks.length+'ヶ月すべてで、毎月あるはずの項目に金額が入っています。</div>';
+  } else {
+    h+='<div class="banner draft"><b>'+c.holes.length+'ヶ月で、いつもある項目が0になっています。</b>'
+      +'その口座のCSVを取り込み忘れていないか確認してください。<br>'
+      +c.holes.slice(0,6).map(function(x){
+        return mLabelOf(x.k)+'　'+x.miss.map(function(f){return shortName(f.n);}).join("・");
+      }).join("<br>")
+      +(c.holes.length>6?'<br>ほか'+(c.holes.length-6)+'ヶ月':'')+'</div>';
+  }
+  h+='<details><summary>月ごとの一覧を見る</summary><div class="tablewrap" style="margin-top:8px">'
+    +'<table class="cov"><thead><tr><th>月</th>'
+    +c.shown.map(function(f){return '<th>'+shortName(f.n)+'</th>';}).join("")+'</tr></thead><tbody>';
+  c.ks.slice().reverse().forEach(function(k){
+    h+='<tr><td>'+mLabelOf(k)+'</td>'
+      +c.shown.map(function(f){
+        var st=c.grid[k][f.k];
+        if(st===2) return '<td class="on">●</td>';
+        if(st===1) return '<td class="fill">△</td>';
+        var gap=c.cnt[f.k]>=Math.ceil(c.ks.length*0.5);
+        return '<td class="'+(gap?"gap":"off")+'">'+(gap?"×":"・")+'</td>';
+      }).join("")+'</tr>';
+  });
+  h+='</tbody></table></div>'
+    +'<p class="footnote" style="padding-left:0">●CSVから入った　△定例額で補った　×いつもあるのに0　・もともと無い月</p>'
+    +'</details>';
+  host.innerHTML=h;
+}
+var ledgerOpen={};
+function txOf(mk,key){
+  var rec=DB.months[mk];
+  if(!rec||!Array.isArray(rec.__tx)) return null;
+  return rec.__tx.filter(function(t){return t[1]===key;});
+}
 function renderLedger(){
-  renderStrip(); renderBackup();
+  renderStrip(); renderBackup(); renderCoverage();
   document.getElementById("mLabel").textContent=mLabelOf(curMonth);
   var mv=monthValues(curMonth), vals=mv.v, done=mv.done;
   itemsOnly().forEach(function(f){
@@ -1614,6 +1743,24 @@ function renderLedger(){
     el.classList.toggle("draft",!done);
     var bd=document.getElementById("bd-"+f.k); if(bd) bd.hidden=!isInv(f);
     var md=document.getElementById("md-"+f.k); if(md) md.hidden=!isMemo(f);
+    var tl=txOf(curMonth,f.k), tc2=document.getElementById("tc-"+f.k), txb=document.getElementById("tx-"+f.k);
+    if(tc2&&txb){
+      var has=!!(tl&&tl.length);
+      tc2.hidden=!has;
+      tc2.textContent=ledgerOpen[f.k]?"▾":"▸";
+      if(has&&ledgerOpen[f.k]){
+        var srt=tl.slice().sort(function(a,b){return (a[3]||"")<(b[3]||"")?-1:1;});
+        var sum=0; srt.forEach(function(t){sum+=t[2];});
+        txb.innerHTML=srt.map(function(t){
+          return '<div class="r"><span class="d">'+String(t[3]||"").replace("-","/")+'</span>'
+            +'<span class="m">'+(t[4]||"（摘要なし）")+'</span>'
+            +'<span class="a">'+fmtMoney(t[2])+'</span></div>';}).join("")
+          +'<div class="r" style="border-top:1px solid var(--line);font-weight:600">'
+          +'<span class="d"></span><span class="m">'+srt.length+'件</span>'
+          +'<span class="a">'+fmtMoney(sum)+'</span></div>';
+        txb.hidden=false;
+      } else txb.hidden=true;
+    }
     var dl=document.getElementById("dl-"+f.k);
     if(dl){
       var pk=prevRecorded(curMonth);

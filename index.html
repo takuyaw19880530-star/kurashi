@@ -352,7 +352,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
 
     <div class="panel">
       <h2>取り込みの状況</h2>
-      <p class="sub">毎月あるはずの項目が0になっている月を出します。口座の取り込み漏れを見つけるためのものです。</p>
+      <p class="sub">どの口座が、どの月まで入っているかを表示します。</p>
       <div id="coverage"></div>
     </div>
 
@@ -1079,6 +1079,7 @@ function findCols(head){
   f.out =pick(["出金金額","出金","支払金額","引出","お引出"],["残高","区分"]);
   f.inn =pick(["入金金額","入金","預入","お預入"],["残高","区分"]);
   f.kind=pick(["区分"]);
+  f.acct=pick(["口座番号"]);
   f.amt =pick(["取引金額","金額"],["残高"]);
   return f;
 }
@@ -1133,6 +1134,15 @@ function buildImport(files){
       if(c.date>=0&&c.desc>=0&&((c.out>=0||c.inn>=0)||(c.kind>=0&&c.amt>=0))){hi=i;cols=c;break;}
     }
     if(hi<0){errs.push(f.name+"：日付・内容・出金／入金の列を見つけられませんでした");return;}
+    // この口座の呼び名（口座番号があればそれ、なければファイル名）
+    var acct="";
+    if(cols.acct>=0){
+      for(var q=hi+1;q<rows.length;q++){
+        var av=(rows[q][cols.acct]||"").trim();
+        if(av){acct="口座 "+av;break;}
+      }
+    }
+    if(!acct) acct=f.name.replace(/\.[^.]*$/,"").slice(0,22);
     for(var r=hi+1;r<rows.length;r++){
       var row=rows[r];
       var mk=parseDate(row[cols.date]); if(!mk) continue;
@@ -1157,8 +1167,9 @@ function buildImport(files){
       if(sigOwner[sig]===undefined) sigOwner[sig]=fi;
       var key=matchRule(desc);
       if(key==="__skip"){skipped++;continue;}
-      if(!months[mk]) months[mk]={vals:{},un:[],tx:[],cnt:0,minD:null,maxD:null};
+      if(!months[mk]) months[mk]={vals:{},un:[],tx:[],acc:{},cnt:0,minD:null,maxD:null};
       var M=months[mk];
+      M.acc[acct]=(M.acc[acct]||0)+1;
       M.cnt++;
       if(dd){ if(!M.minD||dd<M.minD)M.minD=dd; if(!M.maxD||dd>M.maxD)M.maxD=dd; }
       if(!key){
@@ -1199,6 +1210,10 @@ function applyImport(res,useFill,only){
       else                                 rec[f.k]=(useFill===false?0:recVal(f.k,mn));
     });
     rec.__tx=merged;
+    var pa=(prev&&prev.__acc)?prev.__acc:{};
+    var acc={}; Object.keys(pa).forEach(function(k){acc[k]=pa[k];});
+    Object.keys(res.months[mk].acc||{}).forEach(function(k){acc[k]=res.months[mk].acc[k];});
+    rec.__acc=acc;
     rec.__done=true; DB.months[mk]=rec; n++;
   });
   return n;
@@ -1650,80 +1665,59 @@ function prevRecorded(k){
   var ks=doneKeys().filter(function(x){return x<k;});
   return ks.length?ks[ks.length-1]:null;
 }
-function shortName(n){return n.replace(/（.*$/,"").replace(/\(.*$/,"").slice(0,6);}
 function coverage(){
-  var ks=doneKeys(), items=itemsOnly();
-  if(!ks.length) return null;
-  var cnt={}, grid={};
-  items.forEach(function(f){cnt[f.k]=0;});
+  var ks=doneKeys(); if(!ks.length) return null;
+  var accs=[], grid={}, old=0;
   ks.forEach(function(k){
-    var v=monthValues(k).v, rec=DB.months[k];
-    var tx=(rec&&Array.isArray(rec.__tx))?rec.__tx:null;
-    var fromCsv={};
-    if(tx) tx.forEach(function(t){fromCsv[t[1]]=true;});
-    grid[k]={};
-    items.forEach(function(f){
-      // CSVから入った=2／定例額などで埋まっている=1／0のまま=0
-      var st;
-      if(tx) st = fromCsv[f.k] ? 2 : ((Number(v[f.k])||0)!==0 ? 1 : 0);
-      else   st = (Number(v[f.k])||0)!==0 ? 2 : 0;   // 手入力の月はCSV扱い
-      grid[k][f.k]=st; if(st===2)cnt[f.k]++;
-    });
+    var a=DB.months[k].__acc;
+    grid[k]=a||null;
+    if(!a){old++;return;}
+    Object.keys(a).forEach(function(n){ if(accs.indexOf(n)<0) accs.push(n); });
   });
-  var need=Math.ceil(ks.length*0.5);
-  var regular=items.filter(function(f){return cnt[f.k]>=need;});
+  accs.sort();
   var holes=[];
   ks.forEach(function(k){
-    var miss=regular.filter(function(f){
-      return grid[k][f.k]!==2 && !(f.adj||f.child||f.k==="prepay");});
+    if(!grid[k]) return;
+    var miss=accs.filter(function(n){return !grid[k][n];});
     if(miss.length) holes.push({k:k,miss:miss});
   });
-  // 一度もCSVから入っていない項目（定例額があるか、補完で埋まっているもの）
-  var never=items.filter(function(f){
-    if(f.adj||f.child||f.k==="prepay") return false;   // 通帳に出ない項目は対象外
-    if(cnt[f.k]>0) return false;
-    var t=0; for(var i=1;i<=12;i++) t+=recVal(f.k,i);
-    if(t>0) return true;
-    return ks.some(function(k){return grid[k][f.k]===1;});
-  });
-  return {ks:ks,items:items,cnt:cnt,grid:grid,holes:holes,never:never,
-          shown:items.filter(function(f){return cnt[f.k]>0;}).concat(never)};
+  return {ks:ks,accs:accs,grid:grid,holes:holes,old:old};
 }
 function renderCoverage(){
   var host=document.getElementById("coverage"); if(!host)return;
   var c=coverage();
   if(!c){host.innerHTML='<p class="footnote" style="padding-left:0">まだ記録がありません。</p>';return;}
   var h="";
-  if(c.never.length){
-    h+='<div class="banner draft"><b>一度も金額が入っていない項目があります。</b>'
-      +'その口座のCSVをまだ取り込んでいない可能性が高いです。<br>'
-      +c.never.map(function(f){return shortName(f.n);}).join("・")+'</div>';
+  if(c.old===c.ks.length){
+    h+='<div class="banner draft">いまの記録には口座の情報がありません。'
+      +'CSVを取り込み直すと、どの口座が入っているかを表示できます。</div>';
+    host.innerHTML=h; return;
   }
-  if(!c.holes.length&&!c.never.length){
-    h+='<div class="banner done">記録した'+c.ks.length+'ヶ月すべてで、毎月あるはずの項目に金額が入っています。</div>';
+  h+='<div class="banner '+(c.holes.length?"draft":"done")+'">'
+    +'<b>取り込んだ口座：'+c.accs.length+'件</b><br>'+c.accs.join("／");
+  if(c.old) h+='<br><span style="color:var(--warn)">'+c.old+'ヶ月は口座の情報がありません（古い取り込み）。</span>';
+  if(c.holes.length){
+    h+='<br><b>'+c.holes.length+'ヶ月で、そろっていない口座があります。</b><br>'
+      +c.holes.slice(0,6).map(function(x){return mLabelOf(x.k)+'　'+x.miss.join("・")+' が無い';}).join("<br>")
+      +(c.holes.length>6?'<br>ほか'+(c.holes.length-6)+'ヶ月':'');
   } else {
-    h+='<div class="banner draft"><b>'+c.holes.length+'ヶ月で、いつもある項目が0になっています。</b>'
-      +'その口座のCSVを取り込み忘れていないか確認してください。<br>'
-      +c.holes.slice(0,6).map(function(x){
-        return mLabelOf(x.k)+'　'+x.miss.map(function(f){return shortName(f.n);}).join("・");
-      }).join("<br>")
-      +(c.holes.length>6?'<br>ほか'+(c.holes.length-6)+'ヶ月':'')+'</div>';
+    h+='<br>記録した'+(c.ks.length-c.old)+'ヶ月すべてに、この'+c.accs.length+'口座が入っています。';
   }
+  h+='</div>';
   h+='<details><summary>月ごとの一覧を見る</summary><div class="tablewrap" style="margin-top:8px">'
     +'<table class="cov"><thead><tr><th>月</th>'
-    +c.shown.map(function(f){return '<th>'+shortName(f.n)+'</th>';}).join("")+'</tr></thead><tbody>';
+    +c.accs.map(function(n){return '<th>'+n.slice(0,10)+'</th>';}).join("")+'</tr></thead><tbody>';
   c.ks.slice().reverse().forEach(function(k){
     h+='<tr><td>'+mLabelOf(k)+'</td>'
-      +c.shown.map(function(f){
-        var st=c.grid[k][f.k];
-        if(st===2) return '<td class="on">●</td>';
-        if(st===1) return '<td class="fill">△</td>';
-        var gap=c.cnt[f.k]>=Math.ceil(c.ks.length*0.5);
-        return '<td class="'+(gap?"gap":"off")+'">'+(gap?"×":"・")+'</td>';
+      +c.accs.map(function(n){
+        if(!c.grid[k]) return '<td class="off">？</td>';
+        var cnt=c.grid[k][n];
+        return cnt ? '<td class="on">●<span style="color:var(--muted);font-weight:400">'+cnt+'</span></td>'
+                   : '<td class="gap">×</td>';
       }).join("")+'</tr>';
   });
   h+='</tbody></table></div>'
-    +'<p class="footnote" style="padding-left:0">●CSVから入った　△定例額で補った　×いつもあるのに0　・もともと無い月</p>'
+    +'<p class="footnote" style="padding-left:0">●入っている（数字は明細の件数）　×入っていない　？口座の情報なし（取り込み直すと出ます）</p>'
     +'</details>';
   host.innerHTML=h;
 }

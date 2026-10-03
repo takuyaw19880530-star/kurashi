@@ -685,7 +685,10 @@ var DEF_RULES=[
  {kw:"ことら",              k:"__skip"},
  {kw:"積立から",            k:"__skip"},
  {kw:"賞与",          k:"bonus"},
+ {kw:"シヨウヨ",            k:"bonus"},
  {kw:"給与",          k:"salA"},
+ {kw:"キユウヨ",            k:"salA"},
+ {kw:"カクテイキヨシユツ",  k:"ideco"},
  {kw:"約定返済",      k:"mort"},
  {kw:"オリコ",        k:"orico"},
  {kw:"ジエーシービー",k:"jcb"},
@@ -706,6 +709,16 @@ var DEF_RULES=[
  {kw:"トウデンPG",          k:"othIn"},
  {kw:"東電",                k:"othIn"}
 ];
+function upgradeRules(){
+  if(!Array.isArray(DB.rules))DB.rules=DEF_RULES.map(function(r){return {kw:r.kw,k:r.k};});
+  if(!DB.rulesV||DB.rulesV<2){
+    var addR=[{kw:"シヨウヨ",k:"bonus"},{kw:"キユウヨ",k:"salA"},{kw:"カクテイキヨシユツ",k:"ideco"}];
+    addR.forEach(function(r){
+      if(!DB.rules.some(function(x){return norm(x.kw)===norm(r.kw);})) DB.rules.push({kw:r.kw,k:r.k});
+    });
+    DB.rulesV=2;
+  }
+}
 function defaults(){
   var s={},a={},rec={};
   SETUP.forEach(function(f){if(f.k)s[f.k]=f.v;});
@@ -728,6 +741,9 @@ var DB=load()||defaults();
     if(!Array.isArray(DB.recurring[k])||DB.recurring[k].length!==12) DB.recurring[k]=d.recurring[k].slice();
   });
   if(!Array.isArray(DB.scenarios))DB.scenarios=[];
+  if(!DB.accAlias||typeof DB.accAlias!=="object")DB.accAlias={};
+  upgradeRules();
+  if(!DB.accProfiles||typeof DB.accProfiles!=="object")DB.accProfiles={};
   if(!DB.card||typeof DB.card!=="object")DB.card={};
   if(!Array.isArray(DB.cardRules))DB.cardRules=[];
   if(!Array.isArray(DB.rules))DB.rules=DEF_RULES.map(function(r){return {kw:r.kw,k:r.k};});
@@ -1072,6 +1088,44 @@ function parseCSV(text){
   if(row.some(function(x){return x!=="";})) rows.push(row);
   return rows;
 }
+function accFromName(n){
+  var b=String(n||"").replace(/\.[^.]*$/,"");
+  for(var i=0;i<4;i++) b=b.replace(/[_\-\s]*\d{8,}$/,"");   // 末尾のダウンロード日時を外す
+  b=b.replace(/[_\-\s]+$/,"");
+  return /[^\d_\-\s]/.test(b) ? b.slice(0,24) : "";         // 数字だけの名前は使わない
+}
+function accCanon(n){
+  var a=DB.accAlias||{}, k=0;
+  while(a[n] && a[n]!==n && k++<5) n=a[n];
+  return n;
+}
+function descSig(rows,cols,hi){
+  var s={};
+  for(var r=hi+1;r<rows.length;r++){
+    var d=norm(rows[r][cols.desc]||"").replace(/[\(（].*$/,"").replace(/\d+/g,"").slice(0,10);
+    if(d) s[d]=1;
+  }
+  return Object.keys(s).slice(0,60);
+}
+function guessAcct(sig){
+  var P=DB.accProfiles||{}, best=null, bs=0;
+  Object.keys(P).forEach(function(n){
+    var a={},inter=0,uni={};
+    P[n].forEach(function(x){a[x]=1;uni[x]=1;});
+    sig.forEach(function(x){uni[x]=1; if(a[x])inter++;});
+    var j=inter/Math.max(1,Object.keys(uni).length);
+    if(j>bs){bs=j;best=n;}
+  });
+  return (best&&bs>=0.15)?{name:accCanon(best),score:bs}:null;
+}
+function knownAccounts(){
+  var s={};
+  Object.keys(DB.months).forEach(function(k){
+    var a=DB.months[k].__acc; if(a) Object.keys(a).forEach(function(n){s[accCanon(n)]=1;});
+  });
+  Object.keys(DB.accProfiles||{}).forEach(function(n){s[accCanon(n)]=1;});
+  return Object.keys(s).sort();
+}
 function findCols(head){
   var H=head.map(norm), f={};
   function pick(keys,exclude){
@@ -1082,9 +1136,9 @@ function findCols(head){
     return -1;
   }
   f.date=pick(["日付","年月日","取引日"]);
-  f.desc=pick(["内容","摘要","お取引"]);
+  f.desc=pick(["内容","摘要","取引内容","取引"],["日","金額","残高","区分","番号"]);
   f.out =pick(["出金金額","出金","支払金額","引出","お引出"],["残高","区分"]);
-  f.inn =pick(["入金金額","入金","預入","お預入"],["残高","区分"]);
+  f.inn =pick(["入金金額","入金","預入","お預入","預り金額","お預り","預かり"],["残高","区分"]);
   f.kind=pick(["区分"]);
   f.acct=pick(["口座番号"]);
   f.amt =pick(["取引金額","金額"],["残高"]);
@@ -1128,8 +1182,10 @@ function matchRule(desc){
   return null;
 }
 var LAST_FILES=[];
-function buildImport(files){
-  LAST_FILES=files;
+var LAST_OVR={};
+function buildImport(files,ovr){
+  LAST_FILES=files; LAST_OVR=ovr||{};
+  var finfo=[], unset=0;
   var months={},skipped=0,unmatched=[],errs=[];
   var sigOwner={}, dup=0, dupMonths={};
   files.forEach(function(f,fi){
@@ -1141,15 +1197,25 @@ function buildImport(files){
       if(c.date>=0&&c.desc>=0&&((c.out>=0||c.inn>=0)||(c.kind>=0&&c.amt>=0))){hi=i;cols=c;break;}
     }
     if(hi<0){errs.push(f.name+"：日付・内容・出金／入金の列を見つけられませんでした");return;}
-    // この口座の呼び名（口座番号があればそれ、なければファイル名）
-    var acct="";
+    // この口座の呼び名：指定 > 口座番号 > ファイル名 > 中身から推定
+    var acct="", how="", raw="";
     if(cols.acct>=0){
       for(var q=hi+1;q<rows.length;q++){
         var av=(rows[q][cols.acct]||"").trim();
-        if(av){acct="口座 "+av;break;}
+        if(av){raw="口座 "+av;break;}
       }
     }
-    if(!acct) acct=f.name.replace(/\.[^.]*$/,"").slice(0,22);
+    var dsig=descSig(rows,cols,hi);
+    if(LAST_OVR[f.name]){ acct=LAST_OVR[f.name]; how="指定"; }
+    else if(raw){ acct=raw; how="口座番号"; }
+    else if(accFromName(f.name)){ acct=accFromName(f.name); how="ファイル名"; }
+    else {
+      var gu=guessAcct(dsig);
+      if(gu){ acct=gu.name; how="中身から推定"; }
+      else { acct="未設定の口座"+"ABCDEFGH".charAt(unset++); how="未設定"; }
+    }
+    acct=accCanon(acct);
+    finfo.push({name:f.name,acct:acct,how:how,sig:dsig});
     for(var r=hi+1;r<rows.length;r++){
       var row=rows[r];
       var mk=parseDate(row[cols.date]); if(!mk) continue;
@@ -1197,9 +1263,19 @@ function buildImport(files){
   });
   var filled=itemsOnly().filter(function(f){return !seen[f.k];}).map(function(f){return f.k;});
   return {months:months,skipped:skipped,unmatched:unmatched,errs:errs,seen:seen,filled:filled,
-          dup:dup,dupMonths:dupMonths};
+          dup:dup,dupMonths:dupMonths,files:finfo};
+}
+function learnAccounts(res){
+  if(!DB.accProfiles) DB.accProfiles={};
+  (res.files||[]).forEach(function(fi){
+    if(fi.how==="未設定") return;
+    var cur=DB.accProfiles[fi.acct]||[], s={};
+    cur.concat(fi.sig).forEach(function(x){s[x]=1;});
+    DB.accProfiles[fi.acct]=Object.keys(s).slice(-80);
+  });
 }
 function applyImport(res,useFill,only){
+  learnAccounts(res);
   var n=0;
   Object.keys(res.months).forEach(function(mk){
     if(only && only.indexOf(mk)<0) return;
@@ -1230,6 +1306,22 @@ function renderImport(res){
   var mks=Object.keys(res.months).sort();
   var h='<div class="imp"><h3>読み取り結果</h3>';
   if(res.errs.length) h+='<p class="unmatched">'+res.errs.join("<br>")+'</p>';
+  if(res.files&&res.files.length){
+    var ka=knownAccounts();
+    h+='<datalist id="accList">'+ka.map(function(n){return '<option value="'+n+'">';}).join("")+'</datalist>';
+    h+='<p style="font-size:12.5px;color:var(--ink-2);font-weight:600;margin:0 0 4px">口座の割り当て</p>';
+    res.files.forEach(function(fi,i){
+      var warn=(fi.how==="未設定");
+      h+='<div class="rule" style="flex-wrap:wrap">'
+        +'<span style="flex:1 1 100%;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        +fi.name+'　<span style="color:'+(warn?"var(--warn)":"var(--muted)")+'">（'+fi.how+'）</span></span>'
+        +'<input type="text" list="accList" data-accf="'+i+'" value="'+fi.acct+'" autocomplete="off" style="flex:1">'
+        +'</div>';
+    });
+    if(res.files.some(function(fi){return fi.how==="未設定";}))
+      h+='<p style="font-size:12px;color:var(--warn);margin:4px 0 10px">口座名が分からないファイルがあります。'
+        +'名前を入れておくと、次からは中身を見て自動で判定します。</p>';
+  }
   if(res.dup){
     var dm=Object.keys(res.dupMonths).sort();
     h+='<div class="banner draft" style="margin:0 0 10px">'
@@ -1297,11 +1389,20 @@ function renderImport(res){
   h+='<div class="btnrow"><button class="btn" id="impApply">この内容で記録する</button>'
     +'<button class="btn ghost" id="impCancel">やめる</button></div></div>';
   host.innerHTML=h;
+  host.querySelectorAll("input[data-accf]").forEach(function(inp){
+    inp.addEventListener("change",function(){
+      var fi=res.files[+inp.dataset.accf], v=(inp.value||"").trim();
+      if(!v) return;
+      var o={}; Object.keys(LAST_OVR).forEach(function(k){o[k]=LAST_OVR[k];});
+      o[fi.name]=v;
+      renderImport(buildImport(LAST_FILES,o));
+    });
+  });
   host.querySelectorAll("select[data-un]").forEach(function(sel){
     sel.onchange=function(){
       var x=un[+sel.dataset.un]; if(!sel.value)return;
       DB.rules.unshift({kw:x.d,k:sel.value}); save(); renderRules();
-      renderImport(buildImport(LAST_FILES)); toast("ルールに追加しました");
+      renderImport(buildImport(LAST_FILES,LAST_OVR)); toast("ルールに追加しました");
     };
   });
   document.getElementById("impApply").onclick=function(){
@@ -1676,9 +1777,11 @@ function coverage(){
   var ks=doneKeys(); if(!ks.length) return null;
   var accs=[], grid={}, old=0;
   ks.forEach(function(k){
-    var a=DB.months[k].__acc;
-    grid[k]=a||null;
-    if(!a){old++;return;}
+    var a0=DB.months[k].__acc;
+    if(!a0){grid[k]=null;old++;return;}
+    var a={};
+    Object.keys(a0).forEach(function(n){var cn=accCanon(n); a[cn]=(a[cn]||0)+a0[n];});
+    grid[k]=a;
     Object.keys(a).forEach(function(n){ if(accs.indexOf(n)<0) accs.push(n); });
   });
   accs.sort();
@@ -1726,7 +1829,30 @@ function renderCoverage(){
   h+='</tbody></table></div>'
     +'<p class="footnote" style="padding-left:0">●入っている（数字は明細の件数）　×入っていない　？口座の情報なし（取り込み直すと出ます）</p>'
     +'</details>';
+  h+='<details><summary>口座の名前を変える・まとめる</summary>'
+    +'<p style="font-size:12px;color:var(--muted);margin:6px 0">ほかの口座と同じ名前にすると、1つの口座としてまとめて数えます。'
+    +'銀行のCSVの形式が変わって、同じ口座が別の名前で出たときに使います。</p>'
+    +'<datalist id="accList2">'+c.accs.map(function(n){return '<option value="'+n+'">';}).join("")+'</datalist>';
+  c.accs.forEach(function(n,i){
+    h+='<div class="rule"><span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis">'+n+'</span>'
+      +'<span style="color:var(--muted)">→</span>'
+      +'<input type="text" list="accList2" data-accr="'+i+'" placeholder="新しい名前" autocomplete="off"></div>';
+  });
+  h+='</details>';
   host.innerHTML=h;
+  host.querySelectorAll("input[data-accr]").forEach(function(inp){
+    inp.addEventListener("change",function(){
+      var from=c.accs[+inp.dataset.accr], to=(inp.value||"").trim();
+      if(!to||to===from) return;
+      if(!DB.accAlias) DB.accAlias={};
+      DB.accAlias[from]=to;
+      if(DB.accProfiles&&DB.accProfiles[from]){
+        var s2={}; (DB.accProfiles[to]||[]).concat(DB.accProfiles[from]).forEach(function(x){s2[x]=1;});
+        DB.accProfiles[to]=Object.keys(s2).slice(-80); delete DB.accProfiles[from];
+      }
+      save(); renderAll(); toast("「"+from+"」を「"+to+"」にまとめました");
+    });
+  });
 }
 var ledgerOpen={};
 function txOf(mk,key){
@@ -2513,6 +2639,9 @@ function loadJSON(text){
       invFlags:o.invFlags||{},scenarios:Array.isArray(o.scenarios)?o.scenarios:[],
       rules:Array.isArray(o.rules)?o.rules:DEF_RULES.map(function(r){return {kw:r.kw,k:r.k};}),
       card:(o.card&&typeof o.card==="object")?o.card:{},
+      accAlias:(o.accAlias&&typeof o.accAlias==="object")?o.accAlias:{},
+      rulesV:o.rulesV||0,
+      accProfiles:(o.accProfiles&&typeof o.accProfiles==="object")?o.accProfiles:{},
       cardRules:Array.isArray(o.cardRules)?o.cardRules:[],
       lastExport:o.lastExport||null,exportedRecs:o.exportedRecs||0,
       selfName:typeof o.selfName==="string"?o.selfName:"",
@@ -2521,6 +2650,7 @@ function loadJSON(text){
   ["setup","assets"].forEach(function(x){Object.keys(d[x]).forEach(function(k){if(DB[x][k]===undefined)DB[x][k]=d[x][k];});});
   Object.keys(d.recurring).forEach(function(k){if(!Array.isArray(DB.recurring[k])||DB.recurring[k].length!==12)DB.recurring[k]=d.recurring[k].slice();});
   Object.keys(d.auto).forEach(function(k){if(DB.auto[k]===undefined)DB.auto[k]=d.auto[k];});
+  upgradeRules();
   save();boot();
 }
 document.getElementById("imp").onclick=function(){document.getElementById("impFile").click();};

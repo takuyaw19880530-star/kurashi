@@ -266,6 +266,32 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
   .stat-row{grid-template-columns:repeat(4,1fr)}
   .hero .big{font-size:52px}
 }
+.recap .rc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.rc-nav{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);font-family:var(--mincho);font-weight:600}
+.rc-nav button{border:1px solid var(--line);background:var(--surface);border-radius:7px;width:34px;height:32px;
+  font-size:16px;color:var(--ink);cursor:pointer;font-family:var(--gothic)}
+.rc-nav button:disabled{opacity:.35;cursor:default}
+.recap .stat-row{margin-bottom:4px}
+.recap .stat{background:#FAFBFA}
+.recap .stat .m.rc-up{color:var(--bad)} .recap .stat .m.rc-dn{color:var(--good)}
+.rc-sec{border-top:1px solid var(--line);padding-top:11px;margin-top:12px}
+.rc-sec h3{font-family:var(--gothic);font-size:12.5px;color:var(--ink-2);font-weight:600;letter-spacing:.04em;margin:0 0 6px}
+.rc-bl{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:13px;color:var(--muted)}
+.rc-bl b{font-size:17px;color:var(--ink);font-variant-numeric:tabular-nums}
+.rc-bar{display:flex;height:9px;border-radius:5px;background:#EDF0EE;overflow:hidden;margin:7px 0 5px}
+.rc-bar i{display:block;height:100%}
+.rc-bar i.ok{background:var(--good)} .rc-bar i.ov{background:var(--bad)}
+.rc-bm{font-size:12.5px;margin:0;color:var(--muted)}
+.rc-item{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:7px 0;border-bottom:1px solid #EEF1F0;font-size:13.5px}
+.rc-item:last-child{border-bottom:0}
+.rc-item .n{flex:1;min-width:0}
+.rc-item .a{flex:none;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+.rc-item .d{flex:none;min-width:84px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.rc-item .x{flex:1 1 100%;font-size:12px;color:var(--muted)}
+.rc-up{color:var(--bad)} .rc-dn{color:var(--good)} .rc-nt{color:var(--ink-2)}
+.rc-list{margin:0;padding-left:1.2em;font-size:13.5px;line-height:1.75}
+.rc-list li{margin-bottom:5px}
+.rc-none{font-size:13px;color:var(--muted);margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -285,16 +311,18 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
 
 <main>
   <div id="pwaNote"></div>
-  <div class="banner info">
-    数字はすべて空です。前提タブで自分の数字を入れるか、書き出したファイルを読み込んで使い始めてください。
-    入力した内容はこの端末のブラウザにだけ保存され、どこにも送信されません。
-  </div>
   <div id="storagewarn" class="banner draft" hidden>
     このブラウザでは保存が使えません。入力はページを閉じると消えます。「前提」タブの<b>書き出し</b>でファイルに残してください。
   </div>
 
   <!-- 見通し -->
   <section class="view on" id="v-home">
+    <div class="panel recap" id="recapPanel" hidden>
+      <div class="rc-head"><h2>ふりかえり</h2>
+        <span class="rc-nav"><button id="rcPrev" aria-label="前の月">‹</button><span id="rcLabel" class="num"></span><button id="rcNext" aria-label="次の月">›</button></span>
+      </div>
+      <div id="recapBody"></div>
+    </div>
     <div class="hero">
       <p class="lede">仕事を辞めても資産で暮らせるようになる年齢</p>
       <p class="big num" id="fireAge">—</p>
@@ -315,16 +343,6 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
       <div class="stat"><p class="k">プラスに転じる年</p><p class="v num" id="s-cross">—</p><p class="m">資産が負債を上回る</p></div>
       <div class="stat"><p class="k">車のローン完済</p><p class="v num" id="s-car">—</p><p class="m" id="s-car-m"></p></div>
       <div class="stat"><p class="k">住宅ローン完済</p><p class="v num" id="s-home">—</p><p class="m" id="s-home-m"></p></div>
-    </div>
-    <div class="panel">
-      <h2>直近の記録</h2>
-      <p class="sub" id="thisMonthLabel"></p>
-      <div class="stat-row" style="margin-bottom:0">
-        <div class="stat"><p class="k">収入</p><p class="v num" id="m-in">—</p></div>
-        <div class="stat"><p class="k">支出</p><p class="v num" id="m-out">—</p></div>
-        <div class="stat"><p class="k">貯蓄・投資</p><p class="v num" id="m-save">—</p></div>
-        <div class="stat"><p class="k">差額</p><p class="v num" id="m-diff">—</p></div>
-      </div>
     </div>
     <div class="panel" id="advicePanel">
       <h2>いま気になること</h2>
@@ -385,7 +403,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
     </div>
     <div class="panel">
       <h2>カード明細を取り込む</h2>
-      <p class="sub">カード会社の利用明細CSV。何ヶ月ぶんでも。</p>
+      <p class="sub">MyJCBの利用明細CSV。何ヶ月ぶんでも。</p>
       <div class="btnrow">
         <button class="btn" id="jcbBtn">明細CSVを選ぶ</button>
         <input type="file" id="jcbFile" accept=".csv,text/csv" multiple hidden>
@@ -476,6 +494,12 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
     </div>
 
     <div class="panel">
+      <h2>月の上限</h2>
+      <p class="sub">ふりかえりで、多いか少ないかを判断する基準です。</p>
+      <div id="budgetForm"></div>
+    </div>
+
+    <div class="panel">
       <h2>CSVの振り分けルール</h2>
       <div class="banner info" style="margin-bottom:14px">
         自分名義の口座どうしの移動は、通帳に名前で出ます。収支に数えないよう、先に登録してください。
@@ -525,8 +549,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
         </div>
       </details>
       <ul class="footnote">
-        <li>ボーナス加算のある月は、その月だけ金額を変えておきます。</li>
-        <li>隔月や年1回の請求は、該当する月にだけ金額を入れます。</li>
+        <li>住宅ローンは1月と7月、オリコは7月と12月がボーナス加算月。</li>
+        <li>水道は偶数月、ケーブルテレビは9月、損害保険は3月と7月。</li>
       </ul>
     </div>
 
@@ -562,8 +586,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:8px 0}
 
 /* ============ storage ============ */
 var mem={}, canStore=(function(){try{localStorage.setItem("__t","1");localStorage.removeItem("__t");return true;}catch(e){return false;}})();
-function save(){var s=JSON.stringify(DB);if(canStore){try{localStorage.setItem("kurashi.pub.v2",s);return;}catch(e){}}mem.d=s;}
-function load(){var s=null;if(canStore){try{s=localStorage.getItem("kurashi.pub.v2");}catch(e){}}if(!s)s=mem.d;if(!s)return null;try{return JSON.parse(s);}catch(e){return null;}}
+function save(){var s=JSON.stringify(DB);if(canStore){try{localStorage.setItem("kurashi.v2",s);return;}catch(e){}}mem.d=s;}
+function load(){var s=null;if(canStore){try{s=localStorage.getItem("kurashi.v2");}catch(e){}}if(!s)s=mem.d;if(!s)return null;try{return JSON.parse(s);}catch(e){return null;}}
 if(!canStore) document.getElementById("storagewarn").hidden=false;
 
 /* ============ definitions ============ */
@@ -573,99 +597,99 @@ var NOW=new Date(), THIS_YEAR=NOW.getFullYear();
    inv:true は投資への振替なので、支出ではなく貯蓄として扱う。 */
 var ITEMS=[
  {g:"収入", sign:1},
- {k:"salA",  n:"給与（賞与を除く）",        m:[0,0,0,0,0,0,0,0,0,0,0,0],
-   h:"複数の口座に分かれていても、合計をこの1行に"},
- {k:"bonus", n:"賞与",                      m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"6月・12月"},
- {k:"spouse",n:"奥様の収入・入金",          m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"復職後は実際の手取りに直す"},
- {k:"child", n:"児童手当",                  m:[0,0,0,0,0,0,0,0,0,0,0,0], child:true,
+ {k:"salA",  n:"給与（賞与を除く）",        m:[374000,374000,374000,374000,374000,374000,374000,374000,374000,374000,374000,374000],
+   h:"複数の口座に分かれていても、合計をこの1行に入れます"},
+ {k:"bonus", n:"賞与",                      m:[0,0,0,0,0,700000,0,0,0,0,0,650000], h:"6月・12月"},
+ {k:"spouse",n:"奥様の収入・入金",          m:[100000,100000,100000,100000,100000,100000,100000,100000,100000,100000,100000,100000], h:"復職後は実際の手取りに直す"},
+ {k:"child", n:"児童手当",                  m:[30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,30000], child:true,
    h:"給与に含まれている場合は内数。収入には足さず、年収から差し引くために使います"},
  {k:"othIn", n:"その他の収入",              m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"還付金・給付金など"},
 
  {g:"口座から出た額", sign:-1},
- {k:"mort",  n:"住宅ローン",                m:[0,0,0,0,0,0,0,0,0,0,0,0], home:true, h:"ボーナス加算は1月と7月"},
- {k:"orico", n:"オリコ（車ローン＋カード）",m:[0,0,0,0,0,0,0,0,0,0,0,0]},
- {k:"jcb",   n:"JCBカード（請求額）",       m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"保険・通信も含んだ請求額のまま"},
- {k:"smbc",  n:"三井住友カード",            m:[0,0,0,0,0,0,0,0,0,0,0,0]},
- {k:"meiji", n:"明治安田生命",              m:[0,0,0,0,0,0,0,0,0,0,0,0], inv:true, h:"個人年金。積み立てなので貯蓄の扱い"},
- {k:"sonpo", n:"損害保険（自動車・火災）",  m:[0,0,0,0,0,0,0,0,0,0,0,0]},
- {k:"water", n:"水道",                      m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"偶数月"},
- {k:"catv",  n:"ケーブルテレビ",            m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"9月"},
- {k:"parking",n:"駐車場代",                 m:[0,0,0,0,0,0,0,0,0,0,0,0], h:"該当があれば"},
+ {k:"mort",  n:"住宅ローン",                m:[205770,95981,95981,95981,95981,95981,205770,95981,95981,95981,95981,95981], home:true, h:"ボーナス加算は1月と7月"},
+ {k:"orico", n:"オリコ（車ローン＋カード）",m:[83000,83000,83000,83000,83000,83000,133000,83000,83000,83000,83000,133000]},
+ {k:"jcb",   n:"JCBカード（請求額）",       m:[402000,402000,402000,402000,402000,402000,402000,402000,402000,402000,402000,402000], h:"保険・通信も含んだ請求額のまま"},
+ {k:"smbc",  n:"三井住友カード",            m:[9100,9100,9100,9100,9100,9100,9100,9100,9100,9100,9100,9100]},
+ {k:"meiji", n:"明治安田生命",              m:[20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000], inv:true, h:"個人年金。積み立てなので貯蓄の扱い"},
+ {k:"sonpo", n:"損害保険（自動車・火災）",  m:[0,0,4790,0,0,0,99030,0,0,0,0,0]},
+ {k:"water", n:"水道",                      m:[0,10000,0,10000,0,10000,0,10000,0,10000,0,10000], h:"偶数月"},
+ {k:"catv",  n:"ケーブルテレビ",            m:[0,0,0,0,0,0,0,0,30250,0,0,0], h:"9月"},
+ {k:"parking",n:"駐車場代",                 m:[10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000], h:"ドコモSMTB（旧・住信SBI）から毎月振込"},
  {k:"cash",  n:"現金の引き出し",            m:[0,0,0,0,0,0,0,0,0,0,0,0]},
  {k:"othOut",n:"その他の引落",              m:[0,0,0,0,0,0,0,0,0,0,0,0]},
- {k:"ideco", n:"iDeCo",                     m:[0,0,0,0,0,0,0,0,0,0,0,0], inv:true},
+ {k:"ideco", n:"iDeCo",                     m:[12000,12000,12000,12000,12000,12000,12000,12000,12000,12000,12000,12000], inv:true},
  {k:"prepay",n:"繰上返済・追加投資",        m:[0,0,0,0,0,0,0,0,0,0,0,0], inv:true, h:"余った月にここへ"},
 
  {g:"カード請求に含まれる貯蓄分", sign:0},
- {k:"invCard",n:"証券のクレカ積立", m:[0,0,0,0,0,0,0,0,0,0,0,0],
-   adj:true, h:"カード請求に含まれる分。支出から差し引いて貯蓄に振り替えます"},
- {k:"invIns", n:"変額保険の保険料", m:[0,0,0,0,0,0,0,0,0,0,0,0],
-   adj:true, h:"カード請求に含まれる分。積立部分があるため貯蓄の扱い"}
+ {k:"invCard",n:"証券のクレカ積立", m:[50000,50000,50000,50000,50000,50000,50000,50000,50000,50000,50000,50000],
+   adj:true, h:"JCB請求に含まれる分。支出から差し引いて貯蓄に振り替えます"},
+ {k:"invIns", n:"変額保険の保険料", m:[20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000],
+   adj:true, h:"JCB請求に含まれる分。積立部分があるため貯蓄の扱い（死亡保障のコストは含まれます）"}
 ];
 
 var SETUP=[
  {g:"基本"},
- {k:"birth", n:"あなたの生まれた年", v:1990, u:"年", h:"年齢は毎年ここから自動で計算します"},
- {k:"k1Year",n:"第1子の生まれた年", v:2020, u:"年"},
- {k:"k2Year",n:"第2子の生まれた年", v:2023, u:"年"},
+ {k:"birth", n:"あなたの生まれた年", v:1988, u:"年", h:"年齢は毎年ここから自動で計算します"},
+ {k:"k1Year",n:"第1子の生まれた年", v:2024, u:"年"},
+ {k:"k2Year",n:"第2子の生まれた年", v:2026, u:"年"},
 
  {g:"収入（手取り・年額）", auto:"income"},
- {k:"incNow",n:"世帯の手取り年収（いま）", v:0, u:"円", h:"賞与を含み、児童手当は除いた額。見通しでは子の年齢に応じて別に加算します"},
- {k:"incYear",n:"収入が変わる年", v:2030, u:"年", h:"奥様が復職する年"},
- {k:"incDelta",n:"その年からの増減額", v:0, u:"円", h:"復職で増える分。減る場合はマイナス"},
+ {k:"incNow",n:"世帯の手取り年収（いま）", v:6465000, u:"円", h:"賞与を含み、児童手当は除いた額。見通しでは子の年齢に応じて別に加算します"},
+ {k:"incYear",n:"収入が変わる年", v:2027, u:"年", h:"奥様が復職する年"},
+ {k:"incDelta",n:"その年からの増減額", v:3800000, u:"円", h:"復職で増える分。減る場合はマイナス"},
  {k:"raise", n:"昇給率", v:0.5, u:"%", pct:true},
  {k:"childInSalary",n:"児童手当は給与に含まれている", v:1, kindOverride:"check", u:"",
    h:"公務員は給与と一緒に支給されるのが通例。チェックすると記録タブでは内数扱いになり、二重計上を防ぎます"},
- {k:"ch1",   n:"児童手当（3歳未満・1人年額）", v:0, u:"円"},
- {k:"ch2",   n:"児童手当（3〜18歳・1人年額）", v:0, u:"円"},
+ {k:"ch1",   n:"児童手当（3歳未満・1人年額）", v:180000, u:"円"},
+ {k:"ch2",   n:"児童手当（3〜18歳・1人年額）", v:120000, u:"円"},
 
  {g:"暮らしの費用（年額）", auto:"living"},
- {k:"living",n:"暮らしの費用", v:0, u:"円", h:"ローン返済・教育費・投資を除いた全部。保険も通信もここに含む"},
- {k:"buffer",n:"予備費", v:0, u:"円", h:"明細に出ない支出の枠。奥様の個人支出など。自動反映にしてもこれは残ります"},
+ {k:"living",n:"暮らしの費用", v:3940000, u:"円", h:"ローン返済・教育費・投資を除いた全部。保険も通信もここに含む"},
+ {k:"buffer",n:"予備費", v:1200000, u:"円", h:"明細に出ない支出の枠。奥様の個人支出など。自動反映にしてもこれは残ります"},
  {k:"infl",  n:"上昇率", v:1.0, u:"%", pct:true, h:"0%にすると今の物価での試算"},
 
  {g:"教育費（子ども1人あたり年額）"},
- {k:"edu0",n:"就学前", v:0, u:"円", h:"自治体の無償化に合わせて"},
- {k:"edu1",n:"小学校", v:0, u:"円"},
- {k:"edu2",n:"中学校", v:0, u:"円"},
- {k:"edu3",n:"高校",   v:0, u:"円"},
- {k:"edu4",n:"大学",   v:0, u:"円", h:"私立文系・自宅外の目安"},
+ {k:"edu0",n:"就学前", v:0, u:"円", h:"南アルプス市は0〜2歳も保育料無償"},
+ {k:"edu1",n:"小学校", v:400000, u:"円"},
+ {k:"edu2",n:"中学校", v:550000, u:"円"},
+ {k:"edu3",n:"高校",   v:650000, u:"円"},
+ {k:"edu4",n:"大学",   v:1300000, u:"円", h:"私立文系・自宅外の目安"},
 
  {g:"住宅ローン", auto:"hbal"},
- {k:"hBal", n:"残高", v:0, u:"円"},
- {k:"hRate",n:"金利", v:1.000, u:"%", pct:true},
- {k:"hPay", n:"年間返済額", v:0, u:"円", h:"記録が12ヶ月そろえばその実績、なければ定例額の合計。どちらも無ければ手入力"},
- {k:"hRevY",n:"返済額が見直される年", v:2030, u:"年", h:"変動金利の5年ルールなど"},
- {k:"hPay2",n:"見直し後の年間返済額", v:0, u:"円", h:"見直し時の残高と金利で再計算された額。改定通知が来たら実額に直す"},
+ {k:"hBal", n:"残高", v:47916103, u:"円"},
+ {k:"hRate",n:"金利", v:1.119, u:"%", pct:true},
+ {k:"hPay", n:"年間返済額", v:1371350, u:"円", h:"記録が12ヶ月そろえばその実績、なければ定例額の合計。どちらも無ければ手入力"},
+ {k:"hRevY",n:"返済額が見直される年", v:2029, u:"年", h:"5年ルール。2024年7月借入"},
+ {k:"hPay2",n:"見直し後の年間返済額", v:1569000, u:"円", h:"見直し時の残高と金利で再計算された額。改定通知が来たら実額に直す"},
  {k:"hEx",  n:"追加の繰上返済（年額）", v:0, u:"円", h:"控除が切れる2036年までは0で"},
- {k:"hDed", n:"住宅ローン控除の年額（上限）", v:0, u:"円", h:"年末残高の0.7%。年末調整や確定申告の還付額に合わせてください"},
- {k:"hDedEnd",n:"控除が終わる年", v:2035, u:"年", h:"入居年から13年間など"},
+ {k:"hDed", n:"住宅ローン控除の年額（上限）", v:300000, u:"円", h:"年末残高の0.7%。年末調整や確定申告の還付額に合わせてください"},
+ {k:"hDedEnd",n:"控除が終わる年", v:2036, u:"年", h:"2024年入居なら13年間"},
 
  {g:"車のローン", auto:"cbal"},
- {k:"cBal", n:"残高", v:0, u:"円"},
- {k:"cRate",n:"金利", v:2.0, u:"%", pct:true},
- {k:"cPay", n:"年間返済額", v:0, u:"円", h:"契約上の額。引落にカード利用分が混ざる場合は注意"},
+ {k:"cBal", n:"残高", v:4618622, u:"円"},
+ {k:"cRate",n:"金利", v:2.9, u:"%", pct:true},
+ {k:"cPay", n:"年間返済額", v:788932, u:"円", h:"契約上の額。オリコ引落にはカード利用分も含まれる"},
  {k:"cEx",  n:"追加の繰上返済（年額）", v:0, u:"円", h:"余ったらまずここへ"},
 
  {g:"資産と運用", auto:"asset"},
- {k:"asset", n:"金融資産の現在額", v:0, u:"円", h:"資産タブで残高を保存すると自動で入ります"},
+ {k:"asset", n:"金融資産の現在額", v:8163724, u:"円", h:"資産タブで残高を保存すると自動で入ります"},
  {k:"ret",   n:"期待運用利回り", v:5.0, u:"%", pct:true},
- {k:"retPay",n:"退職金の見込み", v:0, u:"円"},
+ {k:"retPay",n:"退職金の見込み", v:23000000, u:"円"},
  {k:"retAge",n:"退職金を受け取る年齢", v:60, u:"歳"},
- {k:"home",  n:"自宅の想定価値", v:0, u:"円"},
+ {k:"home",  n:"自宅の想定価値", v:40000000, u:"円"},
  {k:"wdRate",n:"取り崩し率", v:4.0, u:"%", pct:true, h:"必要資産＝リタイア後の生活費÷この率"}
 ];
 
 var ASSETS=[
  {g:"資産", sign:1},
- {k:"aSec", n:"証券口座（iDeCo含む）", v:0},
- {k:"aBank",n:"銀行預金", v:0},
- {k:"aIns1",n:"個人年金の解約返戻金", v:0, h:"契約者ページの解約返戻金"},
- {k:"aIns2",n:"変額保険の解約返戻金", v:0, h:"契約者ページの「解約返戻金」の額（積立金額ではありません）"},
+ {k:"aSec", n:"証券口座（iDeCo含む）", v:3623611},
+ {k:"aBank",n:"銀行預金", v:560495},
+ {k:"aIns1",n:"個人年金の解約返戻金", v:3550547, h:"明治安田。契約者ページの解約返戻金"},
+ {k:"aIns2",n:"変額保険の解約返戻金", v:429071, h:"メットライフ変額保険。契約者ページの「解約返戻金」の額をそのまま入れます（積立金額ではありません）"},
  {k:"aOth", n:"その他", v:0},
  {g:"負債", sign:-1},
- {k:"lHome",n:"住宅ローン", v:0},
- {k:"lCar", n:"車のローン", v:0},
+ {k:"lHome",n:"住宅ローン", v:47916103},
+ {k:"lCar", n:"車のローン", v:4618622},
  {k:"lOth", n:"その他", v:0}
 ];
 
@@ -705,6 +729,7 @@ var DEF_RULES=[
  {kw:"ATM",                 k:"cash"},
  {kw:"カードIC",            k:"cash"},
  {kw:"駐車",                k:"parking"},
+ {kw:"ホツポウエステート",  k:"parking"},
  {kw:"スポーツくじ",        k:"othOut"},
  {kw:"トウデンPG",          k:"othIn"},
  {kw:"東電",                k:"othIn"}
@@ -725,7 +750,7 @@ function defaults(){
   ASSETS.forEach(function(f){if(f.k)a[f.k]=f.v;});
   var iv={};
   ITEMS.forEach(function(f){if(f.k){rec[f.k]=f.m.slice(); if(!f.adj) iv[f.k]=!!f.inv;}});
-  return {setup:s, assets:a, recurring:rec, invFlags:iv, months:{}, snaps:[], scenarios:[], card:{}, cardRules:[],
+  return {setup:s, assets:a, recurring:rec, invFlags:iv, months:{}, snaps:[], scenarios:[], card:{}, cardRules:[], budget:{total:0,items:{}},
           rules:DEF_RULES.map(function(r){return {kw:r.kw,k:r.k};}), lastExport:null, exportedRecs:0,
           auto:{income:false, living:false, hbal:true, cbal:true, asset:true}};
 }
@@ -745,6 +770,8 @@ var DB=load()||defaults();
   upgradeRules();
   if(!DB.accProfiles||typeof DB.accProfiles!=="object")DB.accProfiles={};
   if(!DB.card||typeof DB.card!=="object")DB.card={};
+  if(!DB.budget||typeof DB.budget!=="object")DB.budget={total:0,items:{}};
+  if(!DB.budget.items||typeof DB.budget.items!=="object")DB.budget.items={};
   if(!Array.isArray(DB.cardRules))DB.cardRules=[];
   if(!Array.isArray(DB.rules))DB.rules=DEF_RULES.map(function(r){return {kw:r.kw,k:r.k};});
   if(typeof DB.selfName!=="string")DB.selfName="";
@@ -1412,9 +1439,11 @@ function renderImport(res){
       if(cb.checked) only.push(cb.dataset.mk);
     });
     if(!only.length){toast("取り込む月を選んでください");return;}
+    var lastMk=only.slice().sort()[only.length-1];
+    markRecap(lastMk);
     var n=applyImport(res, fc?fc.checked:true, only); save();
-    curMonth=only[only.length-1];
-    host.innerHTML=""; renderAll(); toast(n+"ヶ月ぶんを記録しました");
+    curMonth=only[only.length-1]; recapMonth=lastMk;
+    host.innerHTML=""; renderAll(); toast(n+"ヶ月ぶんを記録しました。見通しタブにふりかえりがあります");
   };
   document.getElementById("impCancel").onclick=function(){host.innerHTML="";};
 }
@@ -1444,13 +1473,13 @@ var CATS=[
  {c:"サブスク",       col:"#9B7EA8", kw:["ＡＰＰＬＥ","APPLE","マイクロソフト","ユ－ネクスト","スカパ","SPOTIFY","みてね","日日新聞","アイシティ","ＣｏｎｏＨａ","ＪＡＦ"]},
  {c:"趣味・娯楽",     col:"#B07A22", kw:["コナミ","ジェイクラ","イープラス","Ｊリーグ","ヴァンフォーレ","ＳＰＵＲＳ","SPURS"]},
  {c:"医療",           col:"#C08A6E", kw:["クリニック","眼科","病院","歯科","整形外科"]},
- {c:"ドラッグストア", col:"#9E8B5E", kw:["ウエルシア","マツモトキヨシ","薬局"]},
+ {c:"ドラッグストア", col:"#9E8B5E", kw:["ウエルシア","クスリのサンロード","マツモトキヨシ","薬局"]},
  {c:"コンビニ",       col:"#7A8B6E", kw:["セブン－イレブン","セブン-イレブン","ローソン","ファミリーマート","フアミリ","ミニストップ","ＤＪ軽井沢","道の駅"]},
  {c:"外食・カフェ",   col:"#C2803F", kw:["すき家","モスバーガー","マクドナルド","ガスト","しゃぶ葉","丸亀","めん丸","コメダ","スターバックス","サイゼリヤ","大戸屋","かっぱ寿司","焼肉","ココス","ケンタッキー","王将","やよい軒","オリーブの丘","グラッチェ","ペッパーランチ","揚州商人","天神屋","食券","ダイニー","蕎麦","ラーメン","丼","おさかな","飲料自動販売機","ＣｏｋｅＯｎ","自販機","自動販売機","ｐａｔｉｓｓｅｒｉｅ","シャトレーゼ","板に鯛","物産展","駿河庵","十兵衛","初花"]},
  {c:"車・交通",       col:"#5E7180", kw:["ＥＮＥＯＳ","ＥＴＣ","料金所","タイムズ","駐車","オートバックス","トヨタ","Ｖｏｌｋｓｗａｇｅｎ","ＰＡ上り","ＳＡ上り","ＰＡ店","ハイウエイ"]},
  {c:"レジャー・旅行", col:"#3E7C9B", kw:["ホテル","軽井沢","ららぽーと","おもちゃ王国","プリンス","博物館","湯殿館","ヘルシースパ","コート・ダジュール","メルキュール","亀の井","キュービックプラザ","ｆｕｍｏｔｔｏ","ランドリー","イオンモール","ヒカレヤマナシ","出張"]},
  {c:"ネット通販",     col:"#8E6E6E", kw:["ＡＭＡＺＯＮ","AMAZON","Ａｍａｚｏｎ","楽天ペイ"]},
- {c:"食料品・日用品", col:"#6E8E7A", kw:["イオン","イトーヨーカドー","ＪＡ","Ａコープ","アピタ","パルシステム","西松屋","カインズ","コメリ","ニトリ","コストコ","ペトラス"]},
+ {c:"食料品・日用品", col:"#6E8E7A", kw:["イオン","イトーヨーカドー","いちやま","ＪＡ南アルプス","Ａコープ","アピタ","パルシステム","西松屋","カインズ","コメリ","ニトリ","コストコ","ペトラス"]},
  {c:"家電・衣類・その他買物",col:"#8E8E6E", kw:["ケーズデンキ","ヨドバシ","ユニクロ","ヒマラヤ","東京インテリア","未来屋書店","イオングループ","イオンディライト"]}
 ];
 function catOf(name){
@@ -1929,12 +1958,14 @@ function renderLedger(){
   if((b=document.getElementById("rec"))) b.onclick=function(){
     var rec={},mn=Number(curMonth.split("-")[1]);
     itemsOnly().forEach(function(f){rec[f.k]=vals[f.k];});
+    markRecap(curMonth);
     rec.__done=true;DB.months[curMonth]=rec;save();
     var recorded=curMonth, nx=shiftMonth(curMonth,1);
+    recapMonth=recorded;
     if(nx<=defaultMonth())curMonth=nx;
     renderAll();
     var bs=backupState();
-    toast(bs.warn?mLabelOf(recorded)+"を記録。前提タブで書き出しをどうぞ":mLabelOf(recorded)+"を記録しました");
+    toast(bs.warn?mLabelOf(recorded)+"を記録。前提タブで書き出しをどうぞ":mLabelOf(recorded)+"を記録しました。見通しタブにふりかえりがあります");
   };
   if((b=document.getElementById("unrec"))) b.onclick=function(){
     delete DB.months[curMonth];save();renderAll();toast("記録を取り消しました");
@@ -2229,22 +2260,271 @@ function renderHome(rows){
   document.getElementById("s-home").textContent=homeY?homeY.age+"歳":"—";
   document.getElementById("s-home-m").textContent=homeY?homeY.year+"年":"66歳より先";
 
-  var keys=Object.keys(DB.months).filter(function(k){return DB.months[k].__done;}).sort();
-  var last=keys.length?keys[keys.length-1]:null;
-  document.getElementById("thisMonthLabel").textContent=last?mLabelOf(last):"まだ記録がありません";
-  if(last){
-    var t=monthTotals(monthValues(last).v);
-    document.getElementById("m-in").textContent=yen(t.income);
-    document.getElementById("m-out").textContent=yen(t.spend);
-    document.getElementById("m-save").textContent=yen(t.invest);
-    var md=document.getElementById("m-diff");
-    md.textContent=yen(t.diff);md.className="v num "+(t.diff>=0?"pos":"neg");
-  } else {
-    ["m-in","m-out","m-save","m-diff"].forEach(function(id){document.getElementById(id).textContent="—";});
-  }
+  renderRecap(rows,need);
   var age=THIS_YEAR-S("birth");
   document.getElementById("subhead").textContent="家計の記録と、"+age+"歳から65歳までの見通し";
   renderAdvice(rows,need);
+}
+
+/* ============ ふりかえり ============ */
+var recapMonth=null;
+function sgnY(n){n=Math.round(n);return (n>0?"＋":n<0?"−":"±")+fmtMoney(Math.abs(n));}
+/* 目標到達の時期（年・小数）。年ごとの計算を直線でつないで、月の単位まで出す */
+function fireYears(rows,need){
+  if(!isFinite(need)) return null;
+  var prev=S("asset")-S("hBal")-S("cBal");
+  for(var i=0;i<rows.length;i++){
+    var d=rows[i];
+    if(d.net>=need){
+      var f=d.net>prev?(need-prev)/(d.net-prev):1;
+      if(f<0)f=0; if(f>1)f=1;
+      return d.age-1+f;
+    }
+    prev=d.net;
+  }
+  return null;
+}
+function fireAlt(mod){
+  var cp={}; Object.keys(DB.setup).forEach(function(k){cp[k]=DB.setup[k];});
+  mod(cp);
+  return withSetup(cp,function(){
+    var r=project(), nd=needAsset(), age=null;
+    r.forEach(function(d){if(age===null&&d.net>=nd)age=d.age;});
+    return {y:fireYears(r,nd),age:age};
+  });
+}
+function moveTxt(b,a){
+  if(b===null&&a===null) return null;
+  if(b===null) return "65歳までに届く計算になります";
+  if(a===null) return "65歳までに届かなくなります";
+  var n=Math.round((a-b)*12);
+  if(n===0) return "目標到達への影響は1ヶ月未満です";
+  return "目標到達は約"+fmtMoney(Math.abs(n))+"ヶ月"+(n>0?"遅れる":"早まる")+"計算です";
+}
+function markRecap(mk){
+  try{ DB.recap={mk:mk,before:fireYears(project(),needAsset())}; }catch(e){ DB.recap=null; }
+}
+/* 比べる相手：その月の定例額。定例額が空なら、それより前の記録の平均 */
+function baseOf(mk){
+  var mn=Number(mk.split("-")[1]), pv={}, any=false;
+  itemsOnly().forEach(function(f){pv[f.k]=recVal(f.k,mn); if(pv[f.k])any=true;});
+  if(any) return {v:pv,l:"予定"};
+  var ks=doneKeys().filter(function(k){return k<mk;}).slice(-12);
+  if(!ks.length) return null;
+  var av={}; itemsOnly().forEach(function(f){av[f.k]=0;});
+  ks.forEach(function(k){var v=monthValues(k).v;
+    itemsOnly().forEach(function(f){av[f.k]+=(Number(v[f.k])||0)/ks.length;});});
+  return {v:av,l:"平均"};
+}
+function carMonthly(){return S("cBal")>0?S("cPay")/12:0;}
+function livingOf(vals,t){return Math.max(0,t.spend-(Number(vals.mort)||0)-carMonthly());}
+function budgetAuto(){return Math.round(S("living")/12);}
+function budgetTotal(){var b=DB.budget||{};return b.total>0?b.total:budgetAuto();}
+function cardDrill(mk,sign){
+  if(!DB.card||!DB.card[mk]) return "";
+  var cur=cardAgg(mk).cats;
+  var others=cardMonths().filter(function(k){return k<mk;}).slice(-6);
+  if(others.length){
+    var avg={};
+    others.forEach(function(k){var cs=cardAgg(k).cats;
+      Object.keys(cs).forEach(function(c){avg[c]=(avg[c]||0)+cs[c].a/others.length;});});
+    var best=null;
+    Object.keys(cur).concat(Object.keys(avg)).forEach(function(c){
+      var d=(cur[c]?cur[c].a:0)-(avg[c]||0);
+      if(best===null||(sign>=0?d>best.d:d<best.d)) best={c:c,d:d};
+    });
+    if(best&&Math.abs(best.d)>=3000&&(sign===0||best.d*sign>0))
+      return "主な"+(best.d>0?"増加":"減少")+"："+best.c+" "+sgnY(best.d)+"円（明細の過去"+others.length+"ヶ月平均比）";
+  }
+  var top=Object.keys(cur).map(function(c){return {c:c,a:cur[c].a};})
+    .sort(function(a,b){return b.a-a.a;}).slice(0,2);
+  return top.length?"多い順："+top.map(function(x){return x.c+" "+fmtMoney(x.a)+"円";}).join("、"):"";
+}
+function unclassified(mk){
+  var rec=DB.months[mk], n=0, a=0;
+  if(!rec||!Array.isArray(rec.__tx)) return {n:0,a:0};
+  rec.__tx.forEach(function(t){
+    if((t[1]==="othOut"||t[1]==="othIn")&&matchRule(t[4]||"")===null){n++;a+=Number(t[2])||0;}
+  });
+  return {n:n,a:a};
+}
+function renderRecap(rows,need){
+  var panel=document.getElementById("recapPanel"), host=document.getElementById("recapBody");
+  if(!panel||!host) return;
+  var ks=doneKeys();
+  if(!ks.length){panel.hidden=true;return;}
+  panel.hidden=false;
+  if(!recapMonth||ks.indexOf(recapMonth)<0) recapMonth=ks[ks.length-1];
+  var mk=recapMonth, ix=ks.indexOf(mk);
+  document.getElementById("rcLabel").textContent=mLabelOf(mk);
+  var bp=document.getElementById("rcPrev"), bn=document.getElementById("rcNext");
+  bp.disabled=ix<=0; bn.disabled=ix>=ks.length-1;
+  bp.onclick=function(){if(ix>0){recapMonth=ks[ix-1];renderRecap(rows,need);}};
+  bn.onclick=function(){if(ix<ks.length-1){recapMonth=ks[ix+1];renderRecap(rows,need);}};
+
+  var vals=monthValues(mk).v, t=monthTotals(vals), base=baseOf(mk);
+  var bt=base?monthTotals(base.v):null, bl=base?base.l+"比 ":"";
+  function stat(k,v,bv,good,cls){
+    var m="";
+    if(bt){var d=v-bv; m='<p class="m '+(Math.abs(d)<1?"":((d>0)===good?"rc-dn":"rc-up"))+'">'+bl+sgnY(d)+'</p>';}
+    return '<div class="stat"><p class="k">'+k+'</p><p class="v num'+(cls||"")+'">'+yen(v)+'</p>'+m+'</div>';
+  }
+  var h='<div class="stat-row">'
+    +stat("収入",t.income,bt?bt.income:0,true)
+    +stat("支出",t.spend,bt?bt.spend:0,false)
+    +stat("貯蓄・投資",t.invest,bt?bt.invest:0,true)
+    +stat("差額",t.diff,bt?bt.diff:0,true,t.diff>=0?" pos":" neg")
+    +'</div>';
+
+  // 1. 上限との比較
+  var liv=livingOf(vals,t), B=budgetTotal(), caps=(DB.budget&&DB.budget.items)||{}, overs=[];
+  itemsOnly().forEach(function(f){
+    var c=Number(caps[f.k])||0, v=Number(vals[f.k])||0;
+    if(c>0&&v>c) overs.push({k:f.k,n:f.n,v:v,c:c,over:v-c});
+  });
+  h+='<div class="rc-sec"><h3>暮らしの費用</h3>';
+  if(B>0){
+    var mx=Math.max(liv,B), okW=Math.min(liv,B)/mx*100, ovW=liv>B?(liv-B)/mx*100:0;
+    h+='<div class="rc-bl"><b>'+fmtMoney(liv)+'円</b><span>／ 上限 '+fmtMoney(B)+'円</span></div>'
+      +'<div class="rc-bar"><i class="ok" style="width:'+okW.toFixed(1)+'%"></i><i class="ov" style="width:'+ovW.toFixed(1)+'%"></i></div>'
+      +'<p class="rc-bm">'+(liv>B?'<span class="rc-up">上限を '+fmtMoney(liv-B)+'円 超えました</span>'
+        :'上限まで あと '+fmtMoney(B-liv)+'円')+'</p>';
+  } else {
+    h+='<div class="rc-bl"><b>'+fmtMoney(liv)+'円</b></div>';
+  }
+  overs.forEach(function(o){
+    h+='<p class="rc-bm"><span class="rc-up">'+o.n+'：<span style="white-space:nowrap">'+fmtMoney(o.v)+'円</span><span style="white-space:nowrap">（上限 '+fmtMoney(o.c)+'円、'+sgnY(o.over)+'）</span></span></p>';
+  });
+  h+='</div>';
+
+  // 2. 差が大きかった項目
+  var jcbDiff=0;
+  if(base){
+    var g="", diffs=[];
+    ITEMS.forEach(function(f){
+      if(f.g){g=f.g;return;}
+      if(f.adj||isMemo(f)) return;
+      var a=Number(vals[f.k])||0, b=Number(base.v[f.k])||0, d=a-b;
+      if(f.k==="jcb") jcbDiff=d;
+      if(Math.abs(d)<5000) return;
+      var dir=g==="収入"?1:(isInv(f)?0:-1);
+      diffs.push({f:f,a:a,d:d,dir:dir});
+    });
+    diffs.sort(function(x,y){return Math.abs(y.d)-Math.abs(x.d);});
+    h+='<div class="rc-sec"><h3>'+base.l+'との差が大きかった項目</h3>';
+    if(!diffs.length) h+='<p class="rc-none">大きな差はありませんでした。</p>';
+    diffs.slice(0,3).forEach(function(x){
+      var cls=x.dir===0?"rc-nt":((x.d*x.dir)>0?"rc-dn":"rc-up");
+      var dr=x.f.k==="jcb"?cardDrill(mk,x.d>0?1:-1):"";
+      h+='<div class="rc-item"><span class="n">'+x.f.n+(x.dir===0?'（貯蓄）':'')+'</span>'
+        +'<span class="a">'+fmtMoney(x.a)+'円</span>'
+        +'<span class="d '+cls+'">'+sgnY(x.d)+'</span>'
+        +(dr?'<span class="x">'+dr+'</span>':'')+'</div>';
+    });
+    h+='</div>';
+  }
+
+  // 3. 見通しへの影響
+  var imp=[];
+  if(DB.recap&&DB.recap.mk===mk&&DB.recap.before!==undefined){
+    if(DB.recap.after===undefined){DB.recap.after=fireYears(rows,need);save();}
+    var b0=DB.recap.before, a0=DB.recap.after;
+    if(!(b0===null&&a0===null)){
+      var n0=(b0===null||a0===null)?null:Math.round((a0-b0)*12);
+      if(n0===null||n0!==0) imp.push("記録したことで前提が更新され、"+moveTxt(b0,a0)+"。");
+    }
+  }
+  var fy=fireYears(rows,need);
+  if(bt){
+    var gap=(t.income-t.spend)-(bt.income-bt.spend);
+    if(Math.abs(gap)<1000) imp.push("残せた額は、ほぼ"+base.l+"どおりでした。");
+    else{
+      var r1=fireAlt(function(cp){cp.asset=(Number(cp.asset)||0)+gap;});
+      var m1=moveTxt(fy,r1.y);
+      imp.push("残せた額が"+base.l+"より"+fmtMoney(Math.abs(gap))+"円"
+        +(m1?(gap>0?"多く":"少なく")+"、"+m1:(gap>0?"多くなりました":"少なくなりました"))+"。");
+    }
+    var bl2=livingOf(base.v,bt), dl=liv-bl2;
+    if(Math.abs(dl)>=5000){
+      var r2=fireAlt(function(cp){cp.living=Math.max(0,(Number(cp.living)||0)+dl*12);});
+      var m2=moveTxt(fy,r2.y);
+      if(m2) imp.push("暮らしの費用が毎月この水準だと、"+m2+(r2.age!==null?"（"+r2.age+"歳）":"")+"。");
+    }
+  }
+  if(imp.length) h+='<div class="rc-sec"><h3>見通しへの影響</h3><ul class="rc-list">'
+    +imp.map(function(x){return '<li>'+x+'</li>';}).join("")+'</ul></div>';
+
+  // 4. 次にやること
+  var acts=[], bs=backupState(), unc=unclassified(mk), jcbOver=false;
+  overs.forEach(function(o){
+    if(o.k==="jcb") jcbOver=true;
+    acts.push({p:90,t:o.n+"が上限を"+fmtMoney(o.over)+"円超えました。"
+      +(o.k==="jcb"?(DB.card&&DB.card[mk]?"内訳タブで中身を確認できます。":"内訳タブにカード明細を入れると、何に使ったか分かります。"):"")});
+  });
+  if(B>0&&liv>B){
+    var ov=liv-B;
+    acts.push({p:85,t:"暮らしの費用が上限を"+fmtMoney(ov)+"円超えました。3ヶ月で取り戻すなら、毎月"
+      +fmtMoney(Math.ceil(ov/3))+"円ずつ上限より抑える計算です。"});
+  }
+  if(unc.n) acts.push({p:80,t:"振り分け先のない明細が"+fmtMoney(unc.n)+"件（"+fmtMoney(unc.a)+"円）、「その他」に入っています。"
+    +"記録タブで中身を見て、前提タブのルールに加えると次から自動で分かれます。"});
+  if(jcbDiff>=10000&&!jcbOver&&!(DB.card&&DB.card[mk]))
+    acts.push({p:70,t:"JCBが"+(base?base.l:"")+"より増えています。内訳タブにカード明細を入れると、何に使ったか分かります。"});
+  var ls=DB.snaps.length?DB.snaps[DB.snaps.length-1].date:null;
+  if(!ls||ls<shiftMonth(mk,1)+"-01")
+    acts.push({p:62,t:"資産タブで今の残高を保存すると、この月の結果が見通しの出発点に入ります。"});
+  if(bs.warn) acts.push({p:60,t:"記録の書き出しがまだです。前提タブから書き出してください。"});
+  if(B<=0) acts.push({p:50,t:"前提タブで月の上限を決めると、多いか少ないかを判断できます。"});
+  acts.sort(function(a,b){return b.p-a.p;});
+  h+='<div class="rc-sec"><h3>次にやること</h3>'
+    +(acts.length?'<ul class="rc-list">'+acts.slice(0,2).map(function(x){return '<li>'+x.t+'</li>';}).join("")+'</ul>'
+      :'<p class="rc-none">特にありません。</p>')
+    +'</div>';
+  if(base) h+='<p class="footnote" style="padding-left:0;margin-top:10px;font-size:11.5px">'
+    +(base.l==="予定"?"予定＝前提タブの定例額":"平均＝それまでに記録した月の平均")+'。上限＝前提タブの「月の上限」。</p>';
+  host.innerHTML=h;
+}
+
+/* 月の上限（前提タブ） */
+function capItems(){
+  var out=[],g="";
+  ITEMS.forEach(function(f){if(f.g){g=f.g;return;}
+    if(g==="口座から出た額"&&!isInv(f)&&f.k!=="mort") out.push(f);});
+  return out;
+}
+function buildBudget(){
+  var host=document.getElementById("budgetForm"); if(!host)return;
+  var h='<div class="field"><label for="bg-total">暮らしの費用（月）<span class="hint">空欄なら、暮らしの費用（年額）÷12</span></label>'
+    +'<input id="bg-total" type="text" inputmode="numeric" autocomplete="off"><span class="unit">円</span></div>'
+    +'<details><summary>項目ごとの上限</summary>';
+  capItems().forEach(function(f){
+    h+='<div class="field"><label for="bg-'+f.k+'">'+f.n+'</label>'
+      +'<input id="bg-'+f.k+'" data-bg="'+f.k+'" type="text" inputmode="numeric" autocomplete="off" placeholder="なし">'
+      +'<span class="unit">円</span></div>';
+  });
+  h+='</details>';
+  host.innerHTML=h;
+  var tt=document.getElementById("bg-total"); attachMoney(tt);
+  tt.addEventListener("input",function(){
+    var v=tt.value===""?0:parseNum(tt.value);
+    DB.budget.total=v>0?v:0; save(); renderAll();
+  });
+  host.querySelectorAll("input[data-bg]").forEach(function(el){
+    attachMoney(el);
+    el.addEventListener("input",function(){
+      var v=el.value===""?0:parseNum(el.value);
+      if(v>0) DB.budget.items[el.dataset.bg]=v; else delete DB.budget.items[el.dataset.bg];
+      save(); renderAll();
+    });
+  });
+}
+function syncBudget(){
+  var tt=document.getElementById("bg-total"); if(!tt)return;
+  tt.placeholder=fmtMoney(budgetAuto());
+  if(document.activeElement!==tt) tt.value=DB.budget.total>0?fmtMoney(DB.budget.total):"";
+  document.querySelectorAll("#budgetForm input[data-bg]").forEach(function(el){
+    if(document.activeElement!==el){var v=Number(DB.budget.items[el.dataset.bg])||0; el.value=v>0?fmtMoney(v):"";}
+  });
 }
 
 var SCN_COLORS=["#B07A22","#6B5A8E","#2A7D9B"];
@@ -2504,7 +2784,7 @@ function renderAll(){
   applyAuto();
   var rows=project();
   renderHome(rows); renderProj(rows); renderLedger(); renderAssets(); renderScenarios(); renderRules(); renderCard(); renderPwaNote();
-  syncSetupInputs(); syncRecurring();
+  syncSetupInputs(); syncRecurring(); syncBudget();
 }
 
 /* ============ events ============ */
@@ -2643,6 +2923,8 @@ function loadJSON(text){
       rulesV:o.rulesV||0,
       accProfiles:(o.accProfiles&&typeof o.accProfiles==="object")?o.accProfiles:{},
       cardRules:Array.isArray(o.cardRules)?o.cardRules:[],
+      budget:(o.budget&&typeof o.budget==="object")?{total:Number(o.budget.total)||0,items:(o.budget.items&&typeof o.budget.items==="object")?o.budget.items:{}}:{total:0,items:{}},
+      recap:null,
       lastExport:o.lastExport||null,exportedRecs:o.exportedRecs||0,
       selfName:typeof o.selfName==="string"?o.selfName:"",
       spouseName:typeof o.spouseName==="string"?o.spouseName:""};
@@ -2677,7 +2959,7 @@ document.getElementById("rst").onclick=function(){
 
 /* ============ boot ============ */
 function boot(){
-  buildSetup();buildRecurring();buildLedger();buildAssets();renderAll();
+  buildSetup();buildRecurring();buildBudget();buildLedger();buildAssets();renderAll();
   ["horizon","bars","projChart","projBars","snapChart"].forEach(function(id){
     chartTip(document.getElementById(id));
   });
